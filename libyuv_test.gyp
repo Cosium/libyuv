@@ -8,7 +8,9 @@
 
 {
   'variables': {
-    'libyuv_disable_jpeg%': 0,
+    # Can be enabled if your jpeg has GYP support.
+    'libyuv_disable_jpeg%': 1,
+    'mips_msa%': 0,  # Default to msa off.
   },
   'targets': [
     {
@@ -37,6 +39,7 @@
         'unit_test/color_test.cc',
         'unit_test/convert_test.cc',
         'unit_test/cpu_test.cc',
+        'unit_test/cpu_thread_test.cc',
         'unit_test/math_test.cc',
         'unit_test/planar_test.cc',
         'unit_test/rotate_argb_test.cc',
@@ -50,11 +53,6 @@
         ['OS=="linux"', {
           'cflags': [
             '-fexceptions',
-          ],
-        }],
-        [ 'OS == "ios" and target_subarch == 64', {
-          'defines': [
-            'LIBYUV_DISABLE_NEON'
           ],
         }],
         [ 'OS == "ios"', {
@@ -91,11 +89,10 @@
             'LIBYUV_NEON'
           ],
         }],
-        # MemorySanitizer does not support assembly code yet.
-        # http://crbug.com/344505
-        [ 'msan == 1', {
+        [ '(target_arch == "mipsel" or target_arch == "mips64el") \
+          and (mips_msa == 1)', {
           'defines': [
-            'LIBYUV_DISABLE_X86',
+            'LIBYUV_MSA'
           ],
         }],
       ], # conditions
@@ -103,7 +100,7 @@
         # Enable the following 3 macros to turn off assembly for specified CPU.
         # 'LIBYUV_DISABLE_X86',
         # 'LIBYUV_DISABLE_NEON',
-        # 'LIBYUV_DISABLE_MIPS',
+        # 'LIBYUV_DISABLE_DSPR2',
         # Enable the following macro to build libyuv as a shared library (dll).
         # 'LIBYUV_USING_SHARED_LIBRARY',
       ],
@@ -127,14 +124,14 @@
       ], # conditions
     },
     {
-      'target_name': 'convert',
+      'target_name': 'yuvconvert',
       'type': 'executable',
       'dependencies': [
         'libyuv.gyp:libyuv',
       ],
       'sources': [
         # sources
-        'util/convert.cc',
+        'util/yuvconvert.cc',
       ],
       'conditions': [
         ['OS=="linux"', {
@@ -158,12 +155,6 @@
         'libyuv.gyp:libyuv',
       ],
       'conditions': [
-        [ 'OS == "ios" and target_subarch == 64', {
-          'defines': [
-            'LIBYUV_DISABLE_NEON'
-          ],
-        }],
-
         [ 'OS != "ios" and libyuv_disable_jpeg != 1', {
           'defines': [
             'HAVE_JPEG',
@@ -188,30 +179,16 @@
     ['OS=="android"', {
       'targets': [
         {
-          # TODO(kjellander): Figure out what to change in build/apk_test.gypi
-          # to it can be used instead of the copied code below. Using it in its
-          # current version was not possible, since the target starts with 'lib',
-          # which somewhere confuses the variables.
-          'target_name': 'libyuv_unittest_apk',
+          'target_name': 'yuv_unittest_apk',
           'type': 'none',
           'variables': {
-            # These are used to configure java_apk.gypi included below.
-            'test_type': 'gtest',
-            'apk_name': 'libyuv_unittest',
-            'intermediate_dir': '<(PRODUCT_DIR)/libyuv_unittest_apk',
-            'final_apk_path': '<(intermediate_dir)/libyuv_unittest-debug.apk',
-            'java_in_dir': '<(DEPTH)/testing/android/native_test/java',
-            'native_lib_target': 'libyuv_unittest',
-            'gyp_managed_install': 0,
+            'test_suite_name': 'yuv_unittest',
+            'input_shlib_path': '<(SHARED_LIB_DIR)/(SHARED_LIB_PREFIX)libyuv_unittest<(SHARED_LIB_SUFFIX)',
           },
-          'includes': [ 'build/java_apk.gypi' ],
+          'includes': [
+            'build/apk_test.gypi',
+          ],
           'dependencies': [
-            '<(DEPTH)/base/base.gyp:base_java',
-            '<(DEPTH)/build/android/pylib/device/commands/commands.gyp:chromium_commands',
-            '<(DEPTH)/build/android/pylib/remote/device/dummy/dummy.gyp:remote_device_dummy_apk',
-            '<(DEPTH)/testing/android/appurify_support.gyp:appurify_support_java',
-            '<(DEPTH)/testing/android/on_device_instrumentation.gyp:reporter_java',
-            '<(DEPTH)/tools/android/android_tools.gyp:android_tools',
             'libyuv_unittest',
           ],
         },
